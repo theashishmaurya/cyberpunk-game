@@ -2,7 +2,7 @@ import * as BABYLON from '@babylonjs/core';
 import { Color3, Vector3, MeshBuilder, StandardMaterial, Texture } from '@babylonjs/core';
 
 // Buildings data
-const BUILDINGS_COUNT = 500;
+const DEFAULT_BUILDINGS_COUNT = 500;
 const CITY_SIZE = 2000;
 const MAX_BUILDING_HEIGHT = 300;
 const MIN_BUILDING_HEIGHT = 50;
@@ -30,9 +30,14 @@ export function getBuildingCollisions() {
  * Generate the cyberpunk cityscape
  * @param {BABYLON.Scene} scene - The Babylon.js scene
  * @param {boolean} isMobile - Whether the device is mobile
+ * @param {number} [buildingCount] - Optional building count, defaults based on mobile status
  * @returns {Promise<BABYLON.AbstractMesh[]>} - Array of generated meshes
  */
-export async function generateCityscape(scene: BABYLON.Scene, isMobile: boolean): Promise<BABYLON.AbstractMesh[]> {
+export async function generateCityscape(
+  scene: BABYLON.Scene, 
+  isMobile: boolean,
+  buildingCount?: number
+): Promise<BABYLON.AbstractMesh[]> {
   console.log("Generating cityscape, clearing buildingCollisions");
   // Clear any existing building collisions
   buildingCollisions.length = 0;
@@ -46,13 +51,13 @@ export async function generateCityscape(scene: BABYLON.Scene, isMobile: boolean)
   }
   
   // Generate buildings
-  const count = isMobile ? BUILDINGS_COUNT / 2 : BUILDINGS_COUNT;
+  const count = buildingCount || (isMobile ? DEFAULT_BUILDINGS_COUNT / 2 : DEFAULT_BUILDINGS_COUNT);
   await generateBuildings(scene, count);
   
   console.log("After generating buildings, collision count:", buildingCollisions.length);
   
-  // Add some neon signs and additional details
-  if (!isMobile) {
+  // Add some neon signs and additional details (skip for very low building counts)
+  if (!isMobile && count > 100) {
     await addCityDetails(scene);
   }
   
@@ -149,62 +154,83 @@ async function generateBuildings(scene: BABYLON.Scene, count: number): Promise<v
   // Clear existing buildings
   cityMeshes = cityMeshes.filter(mesh => !mesh.name.startsWith('building'));
   
-  for (let i = 0; i < count; i++) {
-    // Calculate position
-    const x = (Math.random() - 0.5) * CITY_SIZE;
-    const z = (Math.random() - 0.5) * CITY_SIZE;
+  // Use a more efficient approach with batches to avoid freezing
+  const batchSize = 50; // Process this many buildings at once
+  
+  for (let batchStart = 0; batchStart < count; batchStart += batchSize) {
+    const batchEnd = Math.min(batchStart + batchSize, count);
     
-    // Skip buildings too close to center (player start zone)
-    if (Math.abs(x) < 100 && Math.abs(z) < 100) {
-      continue;
+    // Create buildings in this batch
+    for (let i = batchStart; i < batchEnd; i++) {
+      createSingleBuilding(scene, i);
     }
     
-    // Random building dimensions
-    const width = 20 + Math.random() * 40;
-    const depth = 20 + Math.random() * 40;
-    const height = MIN_BUILDING_HEIGHT + Math.random() * (MAX_BUILDING_HEIGHT - MIN_BUILDING_HEIGHT);
-    
-    // Create building mesh
-    const building = MeshBuilder.CreateBox(`building_${i}`, {
-      width,
-      depth,
-      height
-    }, scene);
-    
-    // Position building (y is half height because box origin is center)
-    building.position.x = x;
-    building.position.y = height / 2;
-    building.position.z = z;
-    
-    // Random slight rotation to make city less perfect
-    building.rotation.y = Math.random() * Math.PI * 0.1;
-    
-    // Apply random material
-    const materialIndex = Math.floor(Math.random() * buildingMaterials.length);
-    building.material = buildingMaterials[materialIndex];
-    
-    // Add building to city meshes
-    cityMeshes.push(building);
-    
-    // Create windows for the building (except for very small buildings)
-    if (height > 40) {
-      createBuildingWindows(scene, building, width, height, depth);
-    }
-    
-    // Add collision data for this building
-    buildingCollisions.push({
-      position: {
-        x: building.position.x,
-        y: building.position.y,
-        z: building.position.z
-      },
-      size: {
-        x: width,
-        y: height,
-        z: depth
-      }
-    });
+    // Give the browser a chance to update the UI
+    await new Promise(resolve => setTimeout(resolve, 0));
   }
+}
+
+/**
+ * Create a single building
+ * @param {BABYLON.Scene} scene - The Babylon.js scene
+ * @param {number} index - Building index
+ */
+function createSingleBuilding(scene: BABYLON.Scene, index: number): void {
+  // Calculate position
+  const x = (Math.random() - 0.5) * CITY_SIZE;
+  const z = (Math.random() - 0.5) * CITY_SIZE;
+  
+  // Skip buildings too close to center (player start zone)
+  if (Math.abs(x) < 100 && Math.abs(z) < 100) {
+    return;
+  }
+  
+  // Random building dimensions
+  const width = 20 + Math.random() * 40;
+  const depth = 20 + Math.random() * 40;
+  const height = MIN_BUILDING_HEIGHT + Math.random() * (MAX_BUILDING_HEIGHT - MIN_BUILDING_HEIGHT);
+  
+  // Create building mesh
+  const building = MeshBuilder.CreateBox(`building_${index}`, {
+    width,
+    depth,
+    height
+  }, scene);
+  
+  // Position building (y is half height because box origin is center)
+  building.position.x = x;
+  building.position.y = height / 2;
+  building.position.z = z;
+  
+  // Random slight rotation to make city less perfect
+  building.rotation.y = Math.random() * Math.PI * 0.1;
+  
+  // Apply random material
+  const materialIndex = Math.floor(Math.random() * buildingMaterials.length);
+  building.material = buildingMaterials[materialIndex];
+  
+  // Add building to city meshes
+  cityMeshes.push(building);
+  
+  // Create windows for the building (except for very small buildings)
+  // Skip window creation for more than half the buildings to improve performance
+  if (height > 60 && Math.random() > 0.5) {
+    createBuildingWindows(scene, building, width, height, depth);
+  }
+  
+  // Add collision data for this building
+  buildingCollisions.push({
+    position: {
+      x: building.position.x,
+      y: building.position.y,
+      z: building.position.z
+    },
+    size: {
+      x: width,
+      y: height,
+      z: depth
+    }
+  });
 }
 
 /**

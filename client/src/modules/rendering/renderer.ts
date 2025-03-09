@@ -15,8 +15,8 @@ let playerMeshes: Record<string, BABYLON.AbstractMesh> = {};
 let playerLabels: Record<string, TextBlock> = {};
 let canvas: HTMLCanvasElement;
 
-// Optimization flags
-const LOW_QUALITY_MODE = false; // Can be toggled by user for performance
+// Progress tracking
+let loadingCallback: (progress: number, message: string) => void;
 
 /**
  * Initialize the Babylon.js renderer, scene, camera, and controls
@@ -29,19 +29,43 @@ export async function initializeRenderer(appState: AppState): Promise<RendererIn
   canvas.id = 'renderCanvas';
   document.body.appendChild(canvas);
   
-  // Setup Babylon engine
-  engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
+  // Setup progress callback
+  loadingCallback = (progress: number, message: string) => {
+    // Track loading progress
+    console.log(`[Renderer Loading] ${progress}%: ${message}`);
+  };
+  
+  // Setup Babylon engine with options suited for performance
+  const engineOptions: BABYLON.EngineOptions = { 
+    preserveDrawingBuffer: true, 
+    stencil: true,
+    disableWebGL2Support: false,
+    doNotHandleContextLost: false,
+    powerPreference: "high-performance",
+    failIfMajorPerformanceCaveat: false
+  };
+  
+  engine = new BABYLON.Engine(canvas, true, engineOptions);
+  
+  // Set hardware scaling based on performance level
+  const performanceLevel = appState.gameOptions.performanceLevel || 'medium';
+  applyHardwareScaling(performanceLevel);
   
   // Create the scene
   scene = new BABYLON.Scene(engine);
   
+  // Apply scene optimization options
+  optimizeScene(scene, performanceLevel);
+  
   // Set scene background color to dark blue cyberpunk sky
   scene.clearColor = new BABYLON.Color4(0.02, 0.02, 0.05, 1);
   
-  // Setup fog
-  scene.fogMode = BABYLON.Scene.FOGMODE_EXP2;
-  scene.fogDensity = 0.002;
-  scene.fogColor = new BABYLON.Color3(0.02, 0.02, 0.05);
+  // Setup fog - disable for low performance
+  if (performanceLevel !== 'low') {
+    scene.fogMode = BABYLON.Scene.FOGMODE_EXP2;
+    scene.fogDensity = 0.002;
+    scene.fogColor = new BABYLON.Color3(0.02, 0.02, 0.05);
+  }
   
   // Setup camera
   camera = new BABYLON.FreeCamera('camera', new BABYLON.Vector3(100, 200, 100), scene);
@@ -50,12 +74,25 @@ export async function initializeRenderer(appState: AppState): Promise<RendererIn
   
   // Configure camera settings
   camera.minZ = 10;
-  camera.maxZ = 10000;
+  camera.maxZ = performanceLevel === 'low' ? 3000 : 10000; // Reduce view distance on low performance
   camera.fov = 0.8;
   camera.inertia = 0.7;
   
+  loadingCallback(30, "Setting up environment...");
+  
   // Generate cityscape
-  await generateCityscape(scene, appState.gameOptions.isMobile);
+  // Use a reduced number of buildings for better performance
+  let buildingCount = 500;
+  if (performanceLevel === 'low') {
+    buildingCount = 100;
+  } else if (performanceLevel === 'medium' || appState.gameOptions.isMobile) {
+    buildingCount = 250;
+  }
+  
+  // Generate cityscape with reduced complexity based on performance level
+  await generateCityscape(scene, appState.gameOptions.isMobile, buildingCount);
+  
+  loadingCallback(60, "Creating player model...");
   
   // Create player's car
   playerCar = await createCarModel(scene, 'player');
@@ -65,8 +102,10 @@ export async function initializeRenderer(appState: AppState): Promise<RendererIn
     appState.playerStats.position.z
   );
   
+  loadingCallback(80, "Setting up lighting...");
+  
   // Setup lights after playerCar is created
-  setupLights(appState.gameOptions.isMobile);
+  setupLights(appState.gameOptions.isMobile, performanceLevel);
   
   // Add quality toggle button
   addQualityToggleButton();
@@ -81,8 +120,12 @@ export async function initializeRenderer(appState: AppState): Promise<RendererIn
     engine.resize();
   });
   
+  loadingCallback(90, "Starting render loop...");
+  
   // Start rendering loop
   startRenderingLoop(appState);
+  
+  loadingCallback(100, "Renderer ready");
   
   // Return renderer components
   return {
@@ -95,6 +138,60 @@ export async function initializeRenderer(appState: AppState): Promise<RendererIn
     updatePlayer: (id: string, data: PlayerData) => updateOtherPlayer(id, data),
     removePlayer: (id: string) => removeOtherPlayer(id)
   };
+}
+
+/**
+ * Apply hardware scaling based on performance level
+ * @param {string} performanceLevel - Performance level (low, medium, high)
+ */
+function applyHardwareScaling(performanceLevel: string): void {
+  switch (performanceLevel) {
+    case 'low':
+      engine.setHardwareScalingLevel(2.0); // Render at half resolution
+      break;
+    case 'medium':
+      engine.setHardwareScalingLevel(1.5); // Render at 2/3 resolution
+      break;
+    case 'high':
+      engine.setHardwareScalingLevel(1.0); // Full resolution
+      break;
+    default:
+      engine.setHardwareScalingLevel(1.5);
+  }
+}
+
+/**
+ * Apply scene optimization options
+ * @param {BABYLON.Scene} scene - Babylon scene
+ * @param {string} performanceLevel - Performance level
+ */
+function optimizeScene(scene: BABYLON.Scene, performanceLevel: string): void {
+  // Always enable these optimizations
+  scene.skipPointerMovePicking = true;
+  scene.autoClearDepthAndStencil = false;
+  scene.blockMaterialDirtyMechanism = true;
+  
+  // Performance level specific optimizations
+  switch (performanceLevel) {
+    case 'low':
+      scene.postProcessesEnabled = false;
+      scene.fogEnabled = false;
+      scene.shadowsEnabled = false;
+      scene.particlesEnabled = false;
+      scene.probesEnabled = false;
+      scene.collisionsEnabled = true; // We still need collisions
+      break;
+    case 'medium':
+      scene.postProcessesEnabled = true;
+      scene.fogEnabled = true;
+      scene.shadowsEnabled = false;
+      scene.particlesEnabled = true;
+      scene.probesEnabled = false;
+      break;
+    case 'high':
+      // All features enabled by default
+      break;
+  }
 }
 
 /**
@@ -116,38 +213,24 @@ function addQualityToggleButton(): void {
   qualityBtn.textContent = 'Quality: High';
   
   qualityBtn.addEventListener('click', () => {
-    const newQuality = !LOW_QUALITY_MODE;
-    setQualityMode(newQuality);
-    qualityBtn.textContent = `Quality: ${newQuality ? 'Low' : 'High'}`;
+    const currentPerformanceLevel = qualityBtn.textContent?.includes('High') ? 'high' : 'low';
+    const newLevel = currentPerformanceLevel === 'high' ? 'low' : 'high';
+    
+    applyHardwareScaling(newLevel);
+    optimizeScene(scene, newLevel);
+    
+    qualityBtn.textContent = `Quality: ${newLevel === 'low' ? 'Low' : 'High'}`;
   });
   
   document.body.appendChild(qualityBtn);
 }
 
 /**
- * Set quality mode for performance
- * @param {boolean} isLowQuality - Whether to set low quality mode
- */
-function setQualityMode(isLowQuality: boolean): void {
-  // Adjust scene settings based on quality mode
-  if (isLowQuality) {
-    engine.setHardwareScalingLevel(1.5); // Render at lower resolution
-    scene.postProcessesEnabled = false;
-    scene.fogEnabled = false;
-    scene.shadowsEnabled = false;
-  } else {
-    engine.setHardwareScalingLevel(1); // Render at native resolution
-    scene.postProcessesEnabled = true;
-    scene.fogEnabled = true;
-    scene.shadowsEnabled = true;
-  }
-}
-
-/**
  * Setup scene lighting
  * @param {boolean} isMobile - Whether the device is mobile
+ * @param {string} performanceLevel - Performance level (low, medium, high)
  */
-function setupLights(isMobile: boolean): void {
+function setupLights(isMobile: boolean, performanceLevel: string): void {
   // Create main directional light for shadows
   const sunLight = new BABYLON.DirectionalLight(
     'sunLight',
@@ -167,8 +250,8 @@ function setupLights(isMobile: boolean): void {
   ambientLight.diffuse = new BABYLON.Color3(0.1, 0.2, 0.3);
   ambientLight.groundColor = new BABYLON.Color3(0.1, 0.1, 0.2);
   
-  // Setup shadows (disable on mobile for performance)
-  if (!isMobile) {
+  // Setup shadows (disable on mobile or low performance for performance)
+  if (!isMobile && performanceLevel === 'high') {
     const shadowGenerator = new BABYLON.ShadowGenerator(1024, sunLight);
     shadowGenerator.useBlurExponentialShadowMap = true;
     shadowGenerator.blurScale = 2;
@@ -177,9 +260,15 @@ function setupLights(isMobile: boolean): void {
     // Add player car to shadow casters
     shadowGenerator.addShadowCaster(playerCar);
     
-    // Add shadow casters from cityscape
+    // Add shadow casters from cityscape (limit for performance)
+    let shadowCasterCount = 0;
+    const MAX_SHADOW_CASTERS = 50;
+    
     cityMeshes.forEach(mesh => {
-      shadowGenerator.addShadowCaster(mesh);
+      if (shadowCasterCount < MAX_SHADOW_CASTERS) {
+        shadowGenerator.addShadowCaster(mesh);
+        shadowCasterCount++;
+      }
     });
   }
 }
