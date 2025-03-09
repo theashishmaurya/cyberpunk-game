@@ -1,97 +1,134 @@
-# Cyberpunk Flying Car Game
+# MMO Game
 
-A web-based, multiplayer, open-world game set in a futuristic cyberpunk city. Players control flying cars, engage in laser combat, and explore a dynamic cityscape featuring billboard advertisements.
+This project is a Massively Multiplayer Online (MMO) game with a separate client and server architecture.
+
+## Project Structure
+
+- `client/`: Frontend game client built with TypeScript and Webpack
+- `server/`: Backend game server built with Node.js, Express, and Socket.IO
+
+## Setup and Installation
+
+### Client
+```bash
+cd client
+npm install
+npm start  # Starts the development server
+npm run build  # Builds for production
+```
+
+### Server
+```bash
+cd server
+npm install
+npm run dev  # Starts the development server with hot-reloading
+npm run build  # Compiles TypeScript to JavaScript
+npm start  # Runs the compiled JavaScript
+```
+
+## Development
+
+- Client runs on: http://localhost:9000
+- Server runs on: http://localhost:3000
+
+## Technologies Used
+
+### Client
+- TypeScript
+- Webpack
+- HTML5 Canvas (for game rendering)
+
+### Server
+- Node.js
+- Express
+- Socket.IO
+- TypeScript
 
 ## Features
 
-- Procedurally generated cyberpunk city with dynamic billboards
-- Flying cars with laser combat capabilities
-- Real-time multiplayer via WebSockets
-- Optimized for performance across devices
-- Modular codebase architecture
+- Multiplayer flying car game with real-time networking
+- Cyberpunk-themed open world with procedurally generated cityscape
+- Modern TypeScript codebase
+- Babylon.js rendering engine with advanced lighting and effects
+- Mobile and desktop support with adaptive controls
 
-## Tech Stack
+## Technology Stack
 
-- **Frontend**: Three.js for 3D rendering, HTML5, CSS3, JavaScript
-- **Backend**: Node.js, Express, Socket.io for WebSockets
-- **Build Tools**: Parcel for bundling
+- **Frontend**: Babylon.js, TypeScript, HTML5
+- **Backend**: Node.js, Express, Socket.io, TypeScript
+- **Build Tools**: Parcel, TypeScript compiler
 
-## Getting Started
+## Development Setup
 
-### Prerequisites
-
-- Node.js (v14.x or higher)
-- npm (v6.x or higher)
-
-### Installation
-
-1. Clone this repository:
-   ```
-   git clone https://github.com/yourusername/cyberpunk-flying-car-game.git
-   cd cyberpunk-flying-car-game
-   ```
-
+1. Clone the repository
 2. Install dependencies:
    ```
    npm install
    ```
-
-3. Start the development server:
+3. Run development server:
    ```
    npm run dev:all
    ```
+   This will start both the backend server and frontend development with hot-reloading.
 
-4. Open your browser and navigate to:
-   ```
-   http://localhost:3000
-   ```
+4. Open your browser at `http://localhost:5000`
 
-## Development
+## Build for Production
 
-- `npm run dev` - Start the server with auto-reload
-- `npm run watch` - Watch client files and rebuild on changes
-- `npm run dev:all` - Run both server and client in development mode
-- `npm run build` - Build client for production
+```
+npm run build
+```
 
-## Game Controls
-
-### Desktop
-- WASD: Movement
-- Arrow keys: Direction
-- Space: Shoot laser
-- Shift: Boost
-
-### Mobile
-- Left joystick: Movement
-- Right joystick: Direction
-- Attack button: Shoot laser
-- Boost button: Speed up
-
-For detailed control instructions, see [Controls Documentation](./.docs/controls.md)
+This will compile both server and client TypeScript code and optimize the client for production.
 
 ## Project Structure
 
 ```
-/
-├── src/
-│   ├── client/           # Frontend code
-│   │   ├── assets/       # 3D models, textures, sounds
-│   │   ├── modules/      # Game modules
-│   │   │   ├── game/     # Game logic
-│   │   │   ├── rendering/# Three.js rendering
-│   │   │   ├── network/  # WebSocket client
-│   │   │   └── ads/      # Billboard ad engine
-│   │   └── index.html    # Main HTML file
-│   └── server/           # Backend code
-│       ├── modules/      # Server modules
-│       │   ├── game/     # Game state management
-│       │   ├── network/  # WebSocket server
-│       │   └── ads/      # Ad rotation logic
-│       └── index.js      # Server entry point
-├── .docs/                # Documentation
-└── dist/                 # Compiled client files
+/src
+  /client           # Client-side code
+    /modules
+      /rendering    # Babylon.js rendering code
+      /game         # Game logic
+      /network      # Networking code
+      /audio        # Audio system
+      /ads          # In-game billboard system
+    /assets         # Game assets
+    index.ts        # Main client entry point
+    index.html      # HTML template
+    types.ts        # TypeScript type definitions
+  /server           # Server-side code
+    /modules
+      /game         # Game state management
+      /network      # Socket handling
+      /ads          # Server-side ad engine
+    index.ts        # Server entry point
+    types.ts        # Server-side type definitions
 ```
+
+## Controls
+
+### Desktop
+- **WASD**: Movement
+- **Mouse**: Look around
+- **Space**: Boost
+- **Left Click**: Shoot
+- **E**: Toggle debug mode
+- **M**: Toggle sound
+
+### Mobile
+- **Left Joystick**: Movement
+- **Right Joystick**: Look
+- **BOOST button**: Activate boost
+- **FIRE button**: Shoot laser
 
 ## License
 
-MIT 
+MIT
+
+## Acknowledgements
+
+This game was originally built with Three.js and JavaScript, and has been refactored to use Babylon.js and TypeScript.
+
+## Screenshots
+
+(Add screenshots here) 
